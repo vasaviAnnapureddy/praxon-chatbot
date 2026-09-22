@@ -1,0 +1,55 @@
+# Kept deliberately lean — Render's free machine is 512 MB RAM / 0.1 CPU.
+# No local ML models, no torch, no sentence-transformers. All embedding and
+# generation happens over the network.
+#
+# Ranges, not exact pins: a minimum that has the features we use, and an upper
+# bound that stops a future major version breaking the build without warning.
+# Once your deployment is working, freeze the exact set you tested with:
+#     pip freeze > backend/requirements.lock.txt
+# and keep that file next to this one as the record of what actually shipped.
+
+# --- Web server -------------------------------------------------------------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.34,<1.0
+python-multipart>=0.0.20,<1.0
+
+# --- Config -----------------------------------------------------------------
+pydantic>=2.10,<3.0
+pydantic-settings>=2.7,<3.0
+python-dotenv>=1.0,<2.0
+PyYAML>=6.0,<7.0
+
+# --- Database (Neon Postgres + pgvector) ------------------------------------
+# psycopg3 (not asyncpg): it accepts Neon's connection string, sslmode=require
+# and all, exactly as Neon gives it to you. asyncpg needs manual SSL surgery.
+#
+# Note: the `pgvector` PYTHON package is deliberately NOT here. We use the
+# pgvector Postgres EXTENSION, but the Python package drags in numpy for no
+# benefit — a vector is just text on the wire, and app/db/models.py handles it
+# in 25 lines. That is ~40 MB of RAM we do not have to spend.
+SQLAlchemy>=2.0.36,<3.0
+psycopg[binary]>=3.2,<4.0
+greenlet>=3.1,<4.0
+
+# --- Conversation flow ------------------------------------------------------
+langgraph>=0.2.60,<1.0
+
+# --- LLM providers ----------------------------------------------------------
+# Gemini is the default. Claude and OpenAI are switchable with one config value
+# (LLM_PROVIDER). app/llm/provider.py imports each one lazily, so you can delete
+# the two you do not use if you ever need to shave install size.
+google-genai>=0.8,<2.0
+anthropic>=0.42,<1.0
+openai>=1.59.2,<3.0
+
+# --- Auth, email, content ---------------------------------------------------
+PyJWT>=2.10,<3.0
+httpx>=0.27,<1.0
+pypdf>=5.1,<7.0
+
+# --- "Continue with Google" (team + client login) ---------------------------
+# Checks Google's signature on a sign-in. Already installed as part of
+# google-genai, but listed by name because WE import it directly — if a future
+# google-genai stopped needing it, sign-in must not silently break.
+google-auth>=2.30,<3.0
+requests>=2.31,<3.0

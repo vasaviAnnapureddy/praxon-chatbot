@@ -1,0 +1,175 @@
+# =============================================================================
+# THE SWAP ZONE
+# Everything company-specific lives here. To pitch a different client,
+# change this file + the .md files in client/content/. No code changes.
+# =============================================================================
+
+company:
+  name: "Praxon Technologies"
+  legal_name: "Praxon Technologies Private Limited"
+  tagline: "Software that ships. Built in Hyderabad."
+  city: "Hyderabad"
+  state: "Telangana"
+  country: "India"
+  founded: "2026"
+  # Shown at the bottom of the demo site so nobody mistakes placeholder text for fact.
+  is_demo: true
+  demo_notice: "Demo site built for a pitch. All content is placeholder until Praxon supplies the real text."
+
+branding:
+  primary_color: "#1F4FD8"     # buttons, chat header, links
+  primary_dark: "#16379A"      # hover states
+  accent_color: "#07B6A8"      # highlights, chips
+  text_color: "#10182B"
+  muted_color: "#5B6577"
+  surface_color: "#FFFFFF"
+  background_color: "#F5F7FB"
+  logo_text: "PRAXON"          # used if no logo image is supplied
+  # Logo files live in client/brand/. "" = no image (the name is shown as text).
+  logo_url: "/brand/praxon-logo-header.png"     # top bars: mark + name, no tagline
+  logo_full_url: "/brand/praxon-logo.png"       # sign-in page + footer: with the tagline
+  logo_mark_url: "/brand/praxon-mark.png"       # small square spots (portal header)
+  favicon_url: "/brand/favicon.png"             # the icon on the browser tab
+  font_stack: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif"
+  bubble_position: "right"     # right | left
+  # The corner button. "bot" = the animated robot face. "classic" = plain chat bubble.
+  launcher_style: "bot"
+
+chat:
+  bot_name: "Praxon Assistant"
+  welcome_message: "Hi! I'm Praxon's assistant. Ask me about our services, how we work, or timelines — I'll answer straight away."
+  placeholder: "Ask about services, pricing, timelines..."
+  # Greeting card that pops up next to the button after 3 seconds. "" = no card.
+  launcher_greeting: "Ask me about our services, pricing or timelines — I reply instantly."
+  # These appear as tappable buttons the moment the chat opens. Answers are cached.
+  quick_questions:
+    - "What services do you offer?"
+    - "How much does a website cost?"
+    - "How long does a project take?"
+    - "Do you sign an NDA?"
+    - "Are you hiring?"
+  # Shown once, before we ask for name/email/phone (India DPDP Act basics).
+  consent_line: "Quick note: anything you share here goes only to the Praxon team so they can reply. Nothing else."
+  fallback_message: "I don't have that in my notes, and I'd rather not guess. The team can answer this properly — want me to connect you?"
+  error_message: "Something went wrong on my side. You can reach the team directly while I recover."
+  max_message_chars: 1200
+  max_turns_per_session: 40
+
+contacts:
+  sales_email: "hello@praxontech.in"
+  careers_email: "careers@praxontech.in"
+  phone_display: "+91 90148 45275"
+  whatsapp_number: "919014845275"      # digits only, country code first, used for wa.me
+  whatsapp_prefill: "Hi Praxon, I came from your website and would like to discuss a project."
+  # Empty = every "Book a call" button hides itself. The old placeholder
+  # (cal.com/praxon/intro-call) did not exist and returned 404.
+  # Paste Praxon's real Cal.com / Calendly link here when they give one.
+  booking_url: ""
+  office_line: "Hyderabad, Telangana, India"
+  linkedin_url: ""
+  response_promise: "We reply within one working day."
+
+# Budget chips shown in the chat. Values are stored exactly as the label.
+lead_capture:
+  budget_options:
+    - "Under ₹50,000"
+    - "₹50,000 – ₹2 lakh"
+    - "₹2 – ₹5 lakh"
+    - "₹5 lakh+"
+    - "Not sure yet"
+  timeline_options:
+    - "Within a month"
+    - "1 to 3 months"
+    - "3+ months"
+    - "Just exploring"
+  # The usual order of follow-up questions. ONE per reply, always after answering,
+  # never repeated, never re-asked if skipped. What the visitor asks can move one
+  # to the front: a price question asks budget first, "how long" asks timeline first.
+  # "contact" asks for name AND phone/email together, as the last step.
+  ask_order: ["requirement", "budget", "timeline", "contact"]
+
+# Pricing the bot is ALLOWED to say. Ranges only. Never exact quotes.
+pricing_ranges:
+  - service: "Business website (5-8 pages)"
+    range: "₹35,000 – ₹1,20,000"
+  - service: "Web application / dashboard"
+    range: "₹1,50,000 – ₹6,00,000"
+  - service: "Mobile app (Android + iOS)"
+    range: "₹2,00,000 – ₹8,00,000"
+  - service: "AI chatbot / automation"
+    range: "₹75,000 – ₹3,00,000"
+  - service: "Monthly maintenance & support"
+    range: "₹8,000 – ₹40,000 per month"
+  # The disclaimer is a list entry too, so the whole block stays one clean list.
+  # The assistant appends this whenever it quotes a range.
+  - disclaimer: "These are typical ranges, not quotes. The real number depends on scope, and we confirm it after a short call."
+
+site:
+  hero_heading: "Software teams for companies that need it done properly."
+  hero_sub: "Web apps, mobile apps, AI assistants and cloud — designed, built and maintained from Hyderabad."
+  hero_cta: "Talk to us"
+  hero_cta_secondary: "See what we build"
+  sections:
+    services_heading: "What we build"
+    process_heading: "How we work"
+    why_heading: "Why teams pick us"
+    contact_heading: "Start a conversation"
+  # The service cards on the landing page. Keep these in step with
+  # client/content/services.md — the page and the chatbot should never disagree.
+  services:
+    - title: "Web applications"
+      body: "Dashboards, portals, booking and billing systems. React front end, Python or Node behind it, Postgres underneath."
+      icon: "🖥️"
+    - title: "Business websites"
+      body: "Five to fifteen pages, mobile-first, fast on Indian networks, with a CMS so your team edits text without calling a developer."
+      icon: "🌐"
+    - title: "Mobile apps"
+      body: "Android and iOS from one codebase. Store submission, push notifications, payments and offline handling included."
+      icon: "📱"
+    - title: "AI assistants & chatbots"
+      body: "Assistants that answer from your own content instead of inventing things — like the one in the corner of this page."
+      icon: "🤖"
+    - title: "Cloud & DevOps"
+      body: "AWS and Azure setup, Docker, one-click deployments, monitoring, and a cloud bill that finally makes sense."
+      icon: "☁️"
+    - title: "Maintenance & support"
+      body: "Monthly plans: security updates, bug fixes, small changes, uptime monitoring and a real response time."
+      icon: "🛠️"
+
+  process_steps:
+    - step: "01"
+      title: "Discovery call"
+      body: "Thirty minutes, free. What the problem is, who uses it, what done looks like. If we're not the right fit, we say so here."
+    - step: "02"
+      title: "Scope and estimate"
+      body: "A written list of what gets built, what doesn't, and a price against it. Not a range at this point — a number."
+    - step: "03"
+      title: "Design and approval"
+      body: "Wireframes, then screens. You approve them before production code exists, because screens are cheap to change and software isn't."
+    - step: "04"
+      title: "Build in two-week milestones"
+      body: "Every milestone ends with a link you can click, not a status report. Written update every week."
+    - step: "05"
+      title: "Test and launch"
+      body: "Functional testing, real devices, security basics, then deployment to your accounts and your domain."
+    - step: "06"
+      title: "Handover and support"
+      body: "Code, docs, credentials and a walkthrough. Thirty days of bug fixing, then an optional maintenance plan."
+
+  why_us:
+    - title: "Senior people on your project"
+      body: "You talk to the person writing the code, not a layer of account managers."
+    - title: "Fixed scope, honest ranges"
+      body: "We give a range up front and confirm the number after understanding the scope. No surprise invoices."
+    - title: "You own everything"
+      body: "Code, repositories, servers and accounts are yours from day one. NDA signed before we start."
+    - title: "We stay after launch"
+      body: "Support and maintenance plans so the thing you paid for keeps working."
+
+limits:
+  # Cost control so a public demo link cannot burn the API quota.
+  daily_llm_call_cap: 500
+  per_ip_messages_per_minute: 12
+  per_ip_messages_per_day: 120
+  retrieval_top_k: 4
+  retrieval_min_score: 0.28

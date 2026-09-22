@@ -1,0 +1,211 @@
+===============================================================================
+ PRAXON CHATBOT — THE COMMANDS YOU NEED
+===============================================================================
+
+ WHERE TO TYPE THEM
+   1. VS Code -> File -> Open Folder -> E:\praxon-chatbot
+   2. Terminal -> New Terminal
+   3. The line should start with:   PS E:\praxon-chatbot>
+      If it doesn't, type this first and press Enter:
+          cd E:\praxon-chatbot
+
+ HOW TO TYPE THEM
+   - Copy the command, click in the terminal, paste (Ctrl+V or right-click), Enter.
+   - Every command starts with  .\.venv\Scripts\python.exe
+     That means "use THIS project's Python" (it has all the libraries).
+   - -X utf8 lets the terminal show Telugu, Hindi and the rupee sign.
+
+ IF SOMETHING GOES WRONG
+   "The term '.venv\...' is not recognized"  -> you forgot the .\ at the start
+   "cannot find the path"                    -> you are not in E:\praxon-chatbot (cd first)
+   A long red error                          -> copy the LAST 5 lines and ask
+
+
+===============================================================================
+ 1. START THE WEBSITE                              (every time you work on it)
+===============================================================================
+
+   .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
+
+ WHAT YOU SHOULD SEE (last lines):
+   Praxon Technologies assistant starting
+   Uvicorn running on http://127.0.0.1:8000
+
+ THEN: hold Ctrl and click the link. It opens in your browser.
+
+   Website + chatbot    http://localhost:8000
+   Sign in (everyone)   http://localhost:8000/login
+                        owner/team land on the dashboard, clients on their portal
+
+ IMPORTANT
+   - Keep this terminal OPEN. Closing it switches the website off.
+   - Always include --reload. Without it the database doesn't work on Windows
+     (the terminal will print a warning block with !!!!!! if you forget).
+   - --reload restarts by itself when you change a .py file.
+   - It does NOT restart when you change backend\.env — restart it yourself.
+   - company.yaml changes ARE picked up by themselves, no restart needed.
+
+ TO STOP IT:   click inside the terminal, press  Ctrl + C
+
+ TO RESTART IT:   Ctrl + C, then press the UP arrow key (brings back the last
+                  command), then Enter.
+
+
+===============================================================================
+ 2. CHECK YOUR GOOGLE (GEMINI) KEY                 (after changing the key)
+===============================================================================
+
+   .\.venv\Scripts\python.exe -X utf8 backend\scripts\check_gemini.py
+
+ WHAT YOU SHOULD SEE: every line says [ OK ], including
+   [ OK ]  embedding works: Telugu text -> 768 numbers
+   [ OK ]  chat works: first word in ... ms
+
+ If a line says [FAIL], the line under it says "fix:" and what to do.
+ It never prints your full key.
+
+
+===============================================================================
+ 3. LOAD YOUR CONTENT INTO THE CHATBOT'S MEMORY    (after editing any .md file)
+===============================================================================
+
+   .\.venv\Scripts\python.exe -X utf8 backend\scripts\ingest.py
+
+ WHEN: every time you change a file in client\content\ (about.md, pricing.md...)
+       The chatbot answers from the database, not from the files directly —
+       this copies your changes into the database.
+
+ WHAT YOU SHOULD SEE:
+   51 chunks unchanged — skipping (no embedding cost)     <- only changes are redone
+   embedded/updated : 1
+   total in database: 52
+   ... then 8 test questions, all saying OK (including Telugu and Hindi)
+
+ SAFE TO RUN AS OFTEN AS YOU LIKE. It never touches chats, enquiries or logins.
+
+ Other versions:
+   ...\ingest.py --check     only run the 8 test questions, change nothing
+   ...\ingest.py --force     redo EVERYTHING (only if told to — costs more)
+
+
+===============================================================================
+ 4. CREATE (OR RESET) THE OWNER LOGIN                   (rarely — you have one)
+===============================================================================
+
+   .\.venv\Scripts\python.exe backend\scripts\create_admin.py
+
+ YOU ALREADY HAVE AN OWNER:  username  admin
+ Use this only to: make a new owner, or reset the owner's forgotten password.
+
+ WHAT IT ASKS, AND WHAT TO TYPE:
+
+   Username (no spaces):   admin                  <- one word, press Enter
+   Password (hidden):      (type your password)   <- NOTHING appears. That's normal.
+   Confirm password:       (type it again)
+
+   Then it tells you:  Received a password of 16 characters.
+   If it says "1 characters" -> your paste failed. Type it, or RIGHT-click to paste.
+   (Ctrl+V does NOT work in a hidden password prompt on Windows.)
+
+   If the username exists it asks:   Reset the password? (yes/no):   type  yes
+
+ PASSWORD RULES
+   - at least 12 characters
+   - at least 3 of: lowercase, UPPERCASE, numbers, symbols
+   - save it in your password manager — nobody can recover it for you
+
+ WHAT YOU SHOULD SEE:   Owner 'admin' created.   or   Password reset for 'admin'.
+
+ TEAM MEMBERS AND CLIENTS ARE NOT MADE HERE.
+   Team member -> sign in -> dashboard -> Team tab -> "Add a team member"  (owner only)
+   Client      -> sign in -> dashboard -> Clients & projects -> "Add a client"
+   Both get a TEMPORARY password, EMAILED to them in the same click (tick box).
+   They choose their own password the first time they sign in.
+   Wrong email / name?  -> "Edit" on that person. Changing the email stops the
+                           old sign-in details, then click "Send new sign-in details".
+   Unused after 7 days  -> "Send new sign-in details".
+   NOTE: until you verify a domain on Resend, emails only reach YOUR OWN address.
+         For anyone else the screen says "Not emailed" and shows a message to copy.
+
+
+===============================================================================
+ 5. UPGRADE THE DATABASE                                (once per database)
+===============================================================================
+
+   .\.venv\Scripts\python.exe -X utf8 backend\scripts\upgrade_db.py
+
+ Adds the login + client-portal tables (plus temporary passwords, project
+ assignment and access requests) and copies old owner logins across.
+ Run it whenever an update says "run upgrade_db", and ONCE on production when
+ you deploy. Safe to run again — it never duplicates or deletes anything.
+
+ To let the owner also use "Continue with Google":
+   .\.venv\Scripts\python.exe -X utf8 backend\scripts\upgrade_db.py --owner-email your@gmail.com
+
+
+===============================================================================
+ 6. REBUILD THE WEBSITE'S LOOK                  (after changing frontend files)
+===============================================================================
+
+   cd frontend
+   npm run build
+   cd ..
+
+ WHEN: only if a file inside frontend\ changed (a .jsx, .css or widget.js).
+       The server shows the BUILT copy in frontend\dist — without rebuilding,
+       your change won't appear.
+
+ WHAT YOU SHOULD SEE:  ✓ built in ... s
+ THEN: press Ctrl + F5 in the browser (a full refresh, not the cached copy).
+
+ FIRST TIME ON A NEW LAPTOP ONLY:   cd frontend   then   npm install   then   cd ..
+
+
+===============================================================================
+ 7. TEST THE CHATBOT AUTOMATICALLY                     (before a demo/deploy)
+===============================================================================
+
+ Needs the website RUNNING (command 1) in another terminal.
+ Open a second terminal: click the + at the top right of the terminal panel.
+
+   .\.venv\Scripts\python.exe -X utf8 backend\tests\run_eval.py
+
+ Sends 58 questions + 5 conversations to your chatbot and marks each PASS/FAIL:
+ services, pricing, careers, attacks, Telugu/Hindi, off-topic, the lead flow.
+
+ WHAT YOU SHOULD SEE AT THE END:
+   RESULT: 60/63 passed
+   TIME TO FIRST WORD  average ... ms
+ A "BLOCK" line is a security failure — don't demo until it's fixed.
+
+ NOTE: this uses about 70 AI calls from your daily limit of 500, and leaves
+ test chats in the dashboard (they are named eval_...).
+
+
+===============================================================================
+ 8. FIRST-TIME SETUP ON A NEW LAPTOP                    (you won't need this now)
+===============================================================================
+
+   python -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   copy backend\.env.example backend\.env      <- then fill in the values
+
+
+===============================================================================
+ FILES YOU EDIT BY HAND (no command needed)
+===============================================================================
+
+   backend\.env              secrets: database, Gemini key, Resend key
+                             -> restart the website after changing it
+   client\company.yaml       company details, colours, WhatsApp, prices, chips
+                             -> picked up automatically
+   client\content\*.md       what the chatbot knows
+                             -> then run command 3 (ingest)
+
+ NEVER put a real key or password in any file except backend\.env.
+ NEVER paste a key into a chat, email or screenshot.
+===============================================================================

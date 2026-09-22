@@ -1,0 +1,138 @@
+# =============================================================================
+# Nightly encrypted backup of the Neon PRODUCTION branch.
+#
+# This is layer 2 of the three data-safety layers in section 7:
+#   1. Neon's own 6-hour instant restore   (fast, but only 6 hours)
+#   2. THIS — 30 nights of encrypted dumps (the real safety net)
+#   3. CSV export from the dashboard       (manual, anytime)
+#
+# Two details that are not optional:
+#
+# * ENCRYPTED. The dump contains visitors' names, emails and phone numbers. An
+#   unencrypted dump sitting in a repository is a data breach waiting for
+#   someone to make that repository public by accident.
+#
+# * The backups repository must be PRIVATE. Create it as private and never
+#   change it. The workflow will not create it for you.
+#
+# Why pg_dump runs inside a Docker container: pg_dump refuses to dump a database
+# whose server version is newer than itself. GitHub's runners ship an older
+# client than Neon's server, so we pin the container to the version Neon
+# actually runs. Check yours in the Neon console and change PG_VERSION below.
+# =============================================================================
+
+name: Nightly database backup
+
+on:
+  schedule:
+    # 19:30 UTC = 01:00 IST. Quiet hours in India, so the dump never competes
+    # with a real visitor for Neon's free compute.
+    - cron: "30 19 * * *"
+  workflow_dispatch:      # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: read
+
+env:
+  PG_VERSION: "18"        # must match your Neon project's Postgres version (checked: 18.6)
+  KEEP_DAYS: 30
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check the required secrets exist
+        run: |
+          missing=0
+          for name in NEON_DATABASE_URL BACKUP_PASSPHRASE BACKUP_REPO BACKUP_REPO_TOKEN; do
+            if [ -z "${!name}" ]; then echo "MISSING SECRET: $name"; missing=1; fi
+          done
+          [ "$missing" = "0" ] || { echo "Add the missing secrets in Settings > Secrets and variables > Actions"; exit 1; }
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+
+      - name: Dump the database
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          STAMP=$(TZ=Asia/Kolkata date +%Y-%m-%d)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+
+          # --no-owner / --no-privileges: the dump restores into a fresh Neon
+          # branch whose role names differ. Without these, restore fails on
+          # every single object.
+          docker run --rm -e PGCONNECT_TIMEOUT=20 \
+            postgres:${PG_VERSION}-alpine \
+            pg_dump "$DATABASE_URL" \
+              --no-owner --no-privileges --format=plain \
+            > "praxon-$STAMP.sql"
+
+          SIZE=$(wc -c < "praxon-$STAMP.sql")
+          echo "dump size: $SIZE bytes"
+          # A dump under 1 KB means the connection worked but the database was
+          # empty or wrong. Fail loudly rather than saving 30 empty backups.
+          [ "$SIZE" -gt 1024 ] || { echo "Dump is suspiciously small — failing."; exit 1; }
+
+      - name: Encrypt it
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          gzip -9 "praxon-$STAMP.sql"
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$PASSPHRASE" \
+              --output "praxon-$STAMP.sql.gz.gpg" \
+              "praxon-$STAMP.sql.gz"
+          rm -f "praxon-$STAMP.sql.gz"
+          ls -lh "praxon-$STAMP.sql.gz.gpg"
+
+      - name: Push to the private backups repository
+        env:
+          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${BACKUP_REPO}.git" backups
+          cd backups
+
+          mkdir -p daily
+          mv "../praxon-$STAMP.sql.gz.gpg" "daily/"
+
+          # Keep the last 30 nights. Older files are deleted here, not by hand.
+          ls -1t daily/*.gpg | tail -n +$((KEEP_DAYS + 1)) | xargs -r rm -f
+
+          {
+            echo "# Database backups"
+            echo
+            echo "Encrypted nightly dumps of the Neon production branch. AES-256, passphrase in"
+            echo "the BACKUP_PASSPHRASE secret of the main repository (and in the password"
+            echo "manager — if that passphrase is lost, these files are unreadable)."
+            echo
+            echo "Last backup: $STAMP"
+            echo "Files kept: $(ls -1 daily/*.gpg 2>/dev/null | wc -l)"
+            echo
+            echo "To restore, see docs/RESTORE.md in the main repository."
+          } > README.md
+
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup $STAMP" || { echo "nothing changed"; exit 0; }
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Backup ${{ job.status }}"
+            echo ""
+            echo "- Date (IST): $STAMP"
+            echo "- Destination: \`${{ secrets.BACKUP_REPO }}/daily\`"
+            echo "- Retention: $KEEP_DAYS nights"
+          } >> "$GITHUB_STEP_SUMMARY"

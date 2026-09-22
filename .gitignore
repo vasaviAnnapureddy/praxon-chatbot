@@ -1,0 +1,59 @@
+# =============================================================================
+# The single most important line in this file is ".env".
+# If a key ever reaches GitHub, treat it as public: revoke it and issue a new
+# one. Do not just delete the commit — git remembers.
+#
+# Keep every real secret in a password manager, not only in .env on one laptop.
+# =============================================================================
+
+# --- secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+backend/.env
+*.pem
+*.key
+secrets/
+
+# --- python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- node / vite -------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- local data (nothing important should ever be here — data lives in Neon) --
+*.db
+*.sqlite
+*.sqlite3
+dumps/
+backups/
+*.dump
+*.sql.gz
+*.sql.enc
+
+# --- editors / os -------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- misc ---------------------------------------------------------------------
+*.log
+.cache/
+tmp/
+eval_results_*.json

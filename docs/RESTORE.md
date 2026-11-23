@@ -9,16 +9,14 @@ Do the drill now, while nothing is wrong. It takes fifteen minutes.
 
 ## What you need
 
-1. A backup file. They are attached to each nightly workflow run:
-   **GitHub → `praxon-chatbot` → Actions → Nightly database backup →** click a
-   run → scroll to **Artifacts** → `praxon-backup-YYYY-MM-DD` → it downloads a
-   `.zip`. Unzip it to get `praxon-YYYY-MM-DD.sql.gz.gpg`.
+1. A backup file from the **private** `praxon-backups` repository, e.g.
+   `daily/praxon-2026-11-23.sql.gz.gpg`
 2. The `BACKUP_PASSPHRASE` from your password manager
 3. `gpg` and `psql` on your laptop
 
-**Backups are kept for 90 days.** After that GitHub deletes the artifact. If a
-particular night matters (a release, a demo for a client), download it and keep
-your own copy.
+**The last 30 nights are kept.** Older ones are deleted automatically. If a
+particular night matters (a release, a client demo), download it and keep your
+own copy somewhere else.
 
 **Windows:** install [Gpg4win](https://gpg4win.org) for `gpg`, and
 [PostgreSQL](https://www.postgresql.org/download/windows/) for `psql` (during
@@ -54,8 +52,8 @@ Only when the damage is older than 6 hours do you need the steps below.
 
 ### 1. Download a backup
 
-Actions tab → **Nightly database backup** → the most recent green run →
-**Artifacts** → `praxon-backup-...`. Unzip it somewhere sensible, e.g.
+Go to the `praxon-backups` repository → `daily/` → click the most recent `.gpg`
+file → **Download raw file**. Put it somewhere sensible, e.g.
 `E:\praxon-restore\`.
 
 ### 2. Decrypt it
@@ -200,6 +198,7 @@ successful, every run:
 4. refuses a dump that was cut off in the middle of a table
 5. **decrypts the finished file again and checks it is byte-for-byte identical
    to the original**
+6. refuses to write at all if `praxon-backups` is not private
 
 Step 5 is the one that matters. It means the passphrase works and the file is
 whole, proved on the night it was made rather than on the day you need it.
@@ -211,8 +210,9 @@ sizes and the SHA-256 of the dump.
 
 ## Backup health checklist, once a month, two minutes
 
-- [ ] Actions tab shows a **green** run from last night with an artifact attached
-- [ ] The repository is still **Private** (artifacts follow repository access)
+- [ ] `praxon-backups` has a file from **last night**
+- [ ] `praxon-backups` is still **Private**
 - [ ] The row count in the run summary looks right, and is not falling
 - [ ] `BACKUP_PASSPHRASE` is still in the password manager
+- [ ] `BACKUP_REPO_TOKEN` has not expired (tokens expire; keep the reminder)
 - [ ] Every six months: run the whole drill above, by hand, start to finish

@@ -1,5 +1,19 @@
 # Praxon Website Assistant
 
+### ▶ [Try it live: praxon-chatbot.onrender.com](https://praxon-chatbot.onrender.com)
+
+[![Live site](https://img.shields.io/badge/live-praxon--chatbot.onrender.com-1F4FD8?style=flat-square)](https://praxon-chatbot.onrender.com)
+[![Stack](https://img.shields.io/badge/FastAPI%20%2B%20React%20%2B%20LangGraph-informational?style=flat-square)](#how-it-works)
+[![Database](https://img.shields.io/badge/Neon%20Postgres%20%2B%20pgvector-336791?style=flat-square)](#how-it-works)
+[![Model](https://img.shields.io/badge/Google%20Gemini-4285F4?style=flat-square)](#how-it-works)
+
+Open the link, click the robot at the bottom right, and ask it
+*"how much does a website cost?"* or *"do you build mobile apps?"*.
+It also answers in **Telugu and Hindi**.
+
+> Hosted on a free plan, so it sleeps when nobody is using it.
+> The first load can take up to a minute. After that it is quick.
+
 A company website with a smart assistant built into it.
 
 The assistant answers visitor questions from the company's own content, sends

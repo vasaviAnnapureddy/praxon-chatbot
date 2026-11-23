@@ -7,14 +7,22 @@
 # this job, anything older than 6 hours is gone for good.
 #
 # WHERE THE BACKUP GOES
-# Into a GitHub "artifact" attached to this workflow run — NOT into a second
-# repository. One repository, two secrets, no access token, and nothing is
-# committed, so Render never redeploys the site at 1 am.
+# Into a SEPARATE PRIVATE repository, praxon-backups.
 #
-# THE REPOSITORY MUST STAY PRIVATE
-# Artifacts follow the repository's read access. The dump holds visitors'
-# names, emails and phone numbers. It is encrypted with AES-256, but
-# encryption is the second lock, not the first one.
+#   Q: Why not keep it in this repository, as a workflow artifact? Simpler.
+#   A: Artifacts follow the repository's read access, and THIS repository is
+#      public on purpose, so the code can be shown to people. A public artifact
+#      would mean visitors' names, emails and phone numbers sitting in public,
+#      protected only by the passphrase. Encryption is the second lock, never
+#      the first one. So the data goes somewhere private and the code stays open.
+#
+#   Q: Won't a nightly commit redeploy the live site?
+#   A: No. The commit lands in praxon-backups, which Render does not watch.
+#
+# NOTE ON GROWTH: old files are deleted after KEEP_DAYS, but Git keeps every
+# version forever, so the backups repository grows by roughly one encrypted
+# dump per night and never shrinks. At this database's size that is fine for
+# years. If it ever gets large, delete the repository and start a fresh one.
 #
 # WHAT MAKES THIS MORE THAN "A FILE WAS CREATED"
 # The job checks its own work before it calls itself successful:
@@ -27,6 +35,9 @@
 #   NEON_DATABASE_URL   the database to back up
 #   BACKUP_PASSPHRASE   locks the file. If this is lost, the backups are
 #                       unreadable by anyone, forever. Password manager.
+#   BACKUP_REPO         e.g. vasaviAnnapureddy/praxon-backups  (must be PRIVATE)
+#   BACKUP_REPO_TOKEN   a fine-grained token that can write to that one
+#                       repository and nothing else
 # =============================================================================
 
 name: Nightly database backup
@@ -43,7 +54,7 @@ permissions:
 
 env:
   PG_VERSION: "18"        # must match your Neon project's Postgres version (checked: 18.6)
-  RETENTION_DAYS: 90      # GitHub deletes the artifact itself after this
+  KEEP_DAYS: 30           # nights kept in the backups repository
   # Tables that must appear in every dump. If one is missing, the dump is
   # pointing at the wrong database or something was deleted — fail loudly.
   REQUIRED_TABLES: "users documents conversations messages leads projects"
@@ -63,9 +74,11 @@ jobs:
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
         run: |
           missing=0
-          for name in NEON_DATABASE_URL BACKUP_PASSPHRASE; do
+          for name in NEON_DATABASE_URL BACKUP_PASSPHRASE BACKUP_REPO BACKUP_REPO_TOKEN; do
             if [ -z "${!name}" ]; then echo "MISSING SECRET: $name"; missing=1; fi
           done
           [ "$missing" = "0" ] || {
@@ -173,13 +186,75 @@ jobs:
           echo "Verified: the backup decrypts and matches the original exactly."
 
       # ---------------------------------------------------------------- 5
-      - name: Keep it
-        uses: actions/upload-artifact@v4
-        with:
-          name: praxon-backup-${{ env.STAMP }}
-          path: praxon-${{ env.STAMP }}.sql.gz.gpg
-          retention-days: ${{ env.RETENTION_DAYS }}
-          if-no-files-found: error
+      - name: Store it in the private backups repository
+        env:
+          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          # --depth 1: only the latest commit is needed. Cloning years of
+          # encrypted dumps every night would be slow for no reason.
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${BACKUP_REPO}.git" backups
+          cd backups
+
+          # A public repository here would defeat the whole point, so refuse.
+          # (The dump is encrypted, but encryption is the second lock.)
+          #
+          # The curl is deliberately NOT inside the assignment: with `set -e`,
+          # a failed curl there would abort the step and look exactly like
+          # "the repository is public", which is a different problem entirely.
+          if ! curl -fsS -H "Authorization: Bearer ${TOKEN}" \
+                 -H "Accept: application/vnd.github+json" \
+                 "https://api.github.com/repos/${BACKUP_REPO}" > repo.json; then
+            echo "REFUSING: could not ask GitHub whether ${BACKUP_REPO} is private."
+            echo "Check BACKUP_REPO_TOKEN is valid and still covers that repository."
+            exit 1
+          fi
+          VISIBILITY=$(sed -n 's/.*"private": *\(true\|false\).*/\1/p' repo.json | head -1)
+          rm -f repo.json
+          echo "backups repository private: ${VISIBILITY:-could not tell}"
+          if [ "$VISIBILITY" != "true" ]; then
+            echo "REFUSING to write the backup."
+            echo "${BACKUP_REPO} must be PRIVATE: these dumps hold visitors'"
+            echo "names, emails and phone numbers."
+            exit 1
+          fi
+
+          mkdir -p daily
+          mv "../praxon-$STAMP.sql.gz.gpg" daily/
+
+          # Keep the last KEEP_DAYS nights. Older files go here, not by hand.
+          ls -1t daily/*.gpg | tail -n +$((KEEP_DAYS + 1)) | xargs -r rm -f
+          KEPT=$(ls -1 daily/*.gpg | wc -l)
+          echo "KEPT_FILES=$KEPT" >> "$GITHUB_ENV"
+
+          {
+            echo "# Database backups"
+            echo
+            echo "Encrypted nightly dumps from the praxon-chatbot repository."
+            echo "AES-256. The passphrase is the BACKUP_PASSPHRASE secret there,"
+            echo "and in the password manager. Lose it and these files are"
+            echo "unreadable by anyone, forever."
+            echo
+            echo "Every file here was decrypted and checked byte-for-byte against"
+            echo "the original on the night it was made."
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Last backup | $STAMP |"
+            echo "| Files kept | $KEPT |"
+            echo "| Tables | $TABLE_COUNT |"
+            echo "| Rows | $ROW_TOTAL |"
+            echo
+            echo "Restore steps: \`docs/RESTORE.md\` in the praxon-chatbot repository."
+          } > README.md
+
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup $STAMP ($ROW_TOTAL rows, $TABLE_COUNT tables)" \
+            || { echo "nothing changed"; exit 0; }
+          git push
 
       # ---------------------------------------------------------------- 6
       - name: Write the evidence
@@ -195,7 +270,7 @@ jobs:
             echo "| Plain dump size | ${DUMP_SIZE:-not reached} bytes |"
             echo "| Encrypted size | ${ENC_SIZE:-not reached} bytes |"
             echo "| Decrypted copy matches the original | ${DUMP_SHA:+verified}${DUMP_SHA:-not reached} |"
-            echo "| Kept for | ${RETENTION_DAYS} days |"
+            echo "| Nights now stored | ${KEPT_FILES:-not reached} of ${KEEP_DAYS} |"
             echo ""
             if [ -f rows.txt ]; then
               echo "<details><summary>Rows per table</summary>"

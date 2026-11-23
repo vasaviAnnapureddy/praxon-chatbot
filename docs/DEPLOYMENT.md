@@ -132,27 +132,44 @@ You should see: your files on GitHub, and **no `.env` file anywhere**. Check
 that now. If `backend/.env` is there, stop, delete the repository, and check
 `.gitignore`.
 
-**4.2 Make the repository private**
+**4.2 Create the private backups repository**
 
-Settings → bottom of the page → **Danger Zone** → **Change visibility** →
-**Make private**.
+New repository → name `praxon-backups` → **Private** → create. Leave it empty.
 
-This is not optional once backups are switched on. The nightly backup is stored
-as a workflow artifact, and artifacts follow the repository's read access. The
-dump holds visitors' names, emails and phone numbers.
+**This repository (`praxon-chatbot`) stays public on purpose**, so the code can
+be shown to people. The data must not. So the dumps go to a separate private
+repository. The workflow checks that it really is private and refuses to write
+if it is not.
 
-**4.3 Add the two secrets**
+**4.3 Create a token for the backup workflow**
+
+1. GitHub → your avatar → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+2. Name: `praxon-backup-writer`. Expiry: the longest offered (usually 1 year).
+   Put a calendar reminder a month before it expires.
+3. Repository access: **Only select repositories** → `praxon-backups`.
+4. Permissions → Repository permissions → **Contents: Read and write**.
+   (Metadata turns itself on. That is what lets the workflow check the
+   repository is private.)
+5. Generate, copy, save in the password manager. It is shown once.
+
+**4.4 Add the four secrets**
 
 In **praxon-chatbot** → **Settings** → **Secrets and variables** → **Actions**
-→ **New repository secret**. Two, that is all:
+→ **New repository secret**:
 
 | Name | Value |
 |---|---|
 | `NEON_DATABASE_URL` | the pooled connection string for the branch you want backed up |
 | `BACKUP_PASSPHRASE` | a long phrase you invent. **Save it in the password manager. It is the only thing that can decrypt your backups.** |
+| `BACKUP_REPO` | `YOUR-USERNAME/praxon-backups` |
+| `BACKUP_REPO_TOKEN` | the token from 4.3 |
 
-No access token and no second repository: the backup never pushes anything, so
-nothing can trigger a Render redeploy at 1 am.
+Secrets stay hidden even though this repository is public, and GitHub does not
+hand them to pull requests from strangers.
+
+The nightly commit lands in `praxon-backups`, which Render does not watch, so
+the live site is never redeployed at 1 am.
 
 Then open `.github/workflows/backup.yml` and check `PG_VERSION` matches the
 Postgres version you wrote down in step 1.1.
@@ -300,10 +317,10 @@ important detail in the whole deployment.
 1. GitHub → **Actions** tab → **Nightly database backup** → **Run workflow**.
 2. Watch it. Roughly 60 seconds.
 
-You should see: a green tick, an **Artifacts** section on the run page holding
-`praxon-backup-YYYY-MM-DD`, and a summary table giving the number of tables, the
-number of rows, both file sizes, and a line confirming the encrypted file was
-decrypted again and matched the original exactly.
+You should see: a green tick, a new file in `praxon-backups/daily/` named
+`praxon-YYYY-MM-DD.sql.gz.gpg`, and a summary table on the run page giving the
+number of tables, the number of rows, both file sizes, and a line confirming the
+encrypted file was decrypted again and matched the original exactly.
 
 If it fails on the pg_dump step with a version error, your `PG_VERSION` does not
 match Neon. Fix it in `backup.yml`, push, run again.

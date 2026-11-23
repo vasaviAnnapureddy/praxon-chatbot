@@ -9,10 +9,16 @@ Do the drill now, while nothing is wrong. It takes fifteen minutes.
 
 ## What you need
 
-1. A backup file from the `praxon-backups` repository, e.g.
-   `daily/praxon-2026-09-18.sql.gz.gpg`
+1. A backup file. They are attached to each nightly workflow run:
+   **GitHub → `praxon-chatbot` → Actions → Nightly database backup →** click a
+   run → scroll to **Artifacts** → `praxon-backup-YYYY-MM-DD` → it downloads a
+   `.zip`. Unzip it to get `praxon-YYYY-MM-DD.sql.gz.gpg`.
 2. The `BACKUP_PASSPHRASE` from your password manager
 3. `gpg` and `psql` on your laptop
+
+**Backups are kept for 90 days.** After that GitHub deletes the artifact. If a
+particular night matters (a release, a demo for a client), download it and keep
+your own copy.
 
 **Windows:** install [Gpg4win](https://gpg4win.org) for `gpg`, and
 [PostgreSQL](https://www.postgresql.org/download/windows/) for `psql` (during
@@ -48,8 +54,8 @@ Only when the damage is older than 6 hours do you need the steps below.
 
 ### 1. Download a backup
 
-Go to your `praxon-backups` repository → `daily/` → click the most recent
-`.gpg` file → **Download raw file**. Put it somewhere sensible, e.g.
+Actions tab → **Nightly database backup** → the most recent green run →
+**Artifacts** → `praxon-backup-...`. Unzip it somewhere sensible, e.g.
 `E:\praxon-restore\`.
 
 ### 2. Decrypt it
@@ -183,11 +189,30 @@ are untouched.
 
 ---
 
-## Backup health checklist — once a month, two minutes
+## What the nightly job already checks for you
 
-- [ ] `praxon-backups` has a file from **last night**
-- [ ] The repository is still **Private**
-- [ ] The file is over 1 KB (the workflow fails on smaller, but check anyway)
+You do not have to take "the job went green" on trust. Before it calls itself
+successful, every run:
+
+1. refuses a dump under 1 KB
+2. refuses a dump missing any of `users documents conversations messages leads projects`
+3. refuses a dump where every table has zero rows
+4. refuses a dump that was cut off in the middle of a table
+5. **decrypts the finished file again and checks it is byte-for-byte identical
+   to the original**
+
+Step 5 is the one that matters. It means the passphrase works and the file is
+whole, proved on the night it was made rather than on the day you need it.
+
+Open any run and the summary shows the table count, the row count, both file
+sizes and the SHA-256 of the dump.
+
+---
+
+## Backup health checklist, once a month, two minutes
+
+- [ ] Actions tab shows a **green** run from last night with an artifact attached
+- [ ] The repository is still **Private** (artifacts follow repository access)
+- [ ] The row count in the run summary looks right, and is not falling
 - [ ] `BACKUP_PASSPHRASE` is still in the password manager
-- [ ] `BACKUP_REPO_TOKEN` has not expired (they expire; set a calendar reminder)
-- [ ] Every six months: run the whole drill again
+- [ ] Every six months: run the whole drill above, by hand, start to finish

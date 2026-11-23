@@ -132,33 +132,30 @@ You should see: your files on GitHub, and **no `.env` file anywhere**. Check
 that now. If `backend/.env` is there, stop, delete the repository, and check
 `.gitignore`.
 
-**4.2 Create the private backups repository**
+**4.2 Make the repository private**
 
-New repository → name `praxon-backups` → **Private** → create. Leave it empty.
+Settings → bottom of the page → **Danger Zone** → **Change visibility** →
+**Make private**.
 
-**4.3 Create a token for the backup workflow**
+This is not optional once backups are switched on. The nightly backup is stored
+as a workflow artifact, and artifacts follow the repository's read access. The
+dump holds visitors' names, emails and phone numbers.
 
-1. GitHub → your avatar → **Settings** → **Developer settings** →
-   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
-2. Name: `praxon-backup-writer`. Expiry: 1 year.
-3. Repository access: **Only select repositories** → `praxon-backups`.
-4. Permissions → Repository permissions → **Contents: Read and write**.
-5. Generate, copy, save in the password manager.
+**4.3 Add the two secrets**
 
-**4.4 Add the secrets**
-
-In the **praxon-chatbot** repository → **Settings** → **Secrets and variables**
-→ **Actions** → **New repository secret**. Add four:
+In **praxon-chatbot** → **Settings** → **Secrets and variables** → **Actions**
+→ **New repository secret**. Two, that is all:
 
 | Name | Value |
 |---|---|
-| `NEON_DATABASE_URL` | the **production** branch pooled string |
-| `BACKUP_PASSPHRASE` | a long random phrase you invent — **save it in the password manager, it is the only thing that can decrypt your backups** |
-| `BACKUP_REPO` | `YOUR-USERNAME/praxon-backups` |
-| `BACKUP_REPO_TOKEN` | the token from 4.3 |
+| `NEON_DATABASE_URL` | the pooled connection string for the branch you want backed up |
+| `BACKUP_PASSPHRASE` | a long phrase you invent. **Save it in the password manager. It is the only thing that can decrypt your backups.** |
 
-Then open `.github/workflows/backup.yml` and set `PG_VERSION` to the Postgres
-version you wrote down in step 1.1.
+No access token and no second repository: the backup never pushes anything, so
+nothing can trigger a Render redeploy at 1 am.
+
+Then open `.github/workflows/backup.yml` and check `PG_VERSION` matches the
+Postgres version you wrote down in step 1.1.
 
 ---
 
@@ -303,8 +300,10 @@ important detail in the whole deployment.
 1. GitHub → **Actions** tab → **Nightly database backup** → **Run workflow**.
 2. Watch it. Roughly 60 seconds.
 
-You should see: a green tick, and a new file in `praxon-backups/daily/` named
-`praxon-YYYY-MM-DD.sql.gz.gpg`.
+You should see: a green tick, an **Artifacts** section on the run page holding
+`praxon-backup-YYYY-MM-DD`, and a summary table giving the number of tables, the
+number of rows, both file sizes, and a line confirming the encrypted file was
+decrypted again and matched the original exactly.
 
 If it fails on the pg_dump step with a version error, your `PG_VERSION` does not
 match Neon. Fix it in `backup.yml`, push, run again.

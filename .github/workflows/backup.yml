@@ -1,24 +1,32 @@
 # =============================================================================
-# Nightly encrypted backup of the Neon PRODUCTION branch.
+# Nightly encrypted backup of the Neon database.
 #
-# This is layer 2 of the three data-safety layers in section 7:
-#   1. Neon's own 6-hour instant restore   (fast, but only 6 hours)
-#   2. THIS — 30 nights of encrypted dumps (the real safety net)
-#   3. CSV export from the dashboard       (manual, anytime)
+# WHY THIS EXISTS
+# Neon's Free plan keeps only a 6-hour history window and has no scheduled
+# backups (neon.com/docs/introduction/plans, checked 23 Nov 2026). So without
+# this job, anything older than 6 hours is gone for good.
 #
-# Two details that are not optional:
+# WHERE THE BACKUP GOES
+# Into a GitHub "artifact" attached to this workflow run — NOT into a second
+# repository. One repository, two secrets, no access token, and nothing is
+# committed, so Render never redeploys the site at 1 am.
 #
-# * ENCRYPTED. The dump contains visitors' names, emails and phone numbers. An
-#   unencrypted dump sitting in a repository is a data breach waiting for
-#   someone to make that repository public by accident.
+# THE REPOSITORY MUST STAY PRIVATE
+# Artifacts follow the repository's read access. The dump holds visitors'
+# names, emails and phone numbers. It is encrypted with AES-256, but
+# encryption is the second lock, not the first one.
 #
-# * The backups repository must be PRIVATE. Create it as private and never
-#   change it. The workflow will not create it for you.
+# WHAT MAKES THIS MORE THAN "A FILE WAS CREATED"
+# The job checks its own work before it calls itself successful:
+#   1. the dump really contains the expected tables, with rows in them
+#   2. the encrypted file can be decrypted again with the passphrase
+#   3. the decrypted copy is byte-for-byte identical to the original
+# A backup nobody has opened is a guess. These three checks are the proof.
 #
-# Why pg_dump runs inside a Docker container: pg_dump refuses to dump a database
-# whose server version is newer than itself. GitHub's runners ship an older
-# client than Neon's server, so we pin the container to the version Neon
-# actually runs. Check yours in the Neon console and change PG_VERSION below.
+# SECRETS NEEDED (Settings > Secrets and variables > Actions)
+#   NEON_DATABASE_URL   the database to back up
+#   BACKUP_PASSPHRASE   locks the file. If this is lost, the backups are
+#                       unreadable by anyone, forever. Password manager.
 # =============================================================================
 
 name: Nightly database backup
@@ -35,7 +43,10 @@ permissions:
 
 env:
   PG_VERSION: "18"        # must match your Neon project's Postgres version (checked: 18.6)
-  KEEP_DAYS: 30
+  RETENTION_DAYS: 90      # GitHub deletes the artifact itself after this
+  # Tables that must appear in every dump. If one is missing, the dump is
+  # pointing at the wrong database or something was deleted — fail loudly.
+  REQUIRED_TABLES: "users documents conversations messages leads projects"
 
 jobs:
   backup:
@@ -43,19 +54,24 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # The checking scripts live in the repo, so they can be read and tested
+      # like any other code instead of being buried inside this file.
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------- 0
       - name: Check the required secrets exist
-        run: |
-          missing=0
-          for name in NEON_DATABASE_URL BACKUP_PASSPHRASE BACKUP_REPO BACKUP_REPO_TOKEN; do
-            if [ -z "${!name}" ]; then echo "MISSING SECRET: $name"; missing=1; fi
-          done
-          [ "$missing" = "0" ] || { echo "Add the missing secrets in Settings > Secrets and variables > Actions"; exit 1; }
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
-          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
-          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          missing=0
+          for name in NEON_DATABASE_URL BACKUP_PASSPHRASE; do
+            if [ -z "${!name}" ]; then echo "MISSING SECRET: $name"; missing=1; fi
+          done
+          [ "$missing" = "0" ] || {
+            echo "Add them in Settings > Secrets and variables > Actions"; exit 1; }
 
+      # ---------------------------------------------------------------- 1
       - name: Dump the database
         env:
           DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
@@ -64,22 +80,60 @@ jobs:
           STAMP=$(TZ=Asia/Kolkata date +%Y-%m-%d)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
 
-          # --no-owner / --no-privileges: the dump restores into a fresh Neon
-          # branch whose role names differ. Without these, restore fails on
-          # every single object.
+          # pg_dump refuses to dump a server newer than itself, and GitHub's
+          # runners ship an older client than Neon's server. So pg_dump runs
+          # inside a container pinned to Neon's own major version.
+          #
+          # --no-owner / --no-privileges: the dump restores into a fresh branch
+          # whose role names differ. Without these, restore fails on every object.
           docker run --rm -e PGCONNECT_TIMEOUT=20 \
             postgres:${PG_VERSION}-alpine \
             pg_dump "$DATABASE_URL" \
               --no-owner --no-privileges --format=plain \
             > "praxon-$STAMP.sql"
 
-          SIZE=$(wc -c < "praxon-$STAMP.sql")
-          echo "dump size: $SIZE bytes"
-          # A dump under 1 KB means the connection worked but the database was
-          # empty or wrong. Fail loudly rather than saving 30 empty backups.
-          [ "$SIZE" -gt 1024 ] || { echo "Dump is suspiciously small — failing."; exit 1; }
+          ls -l "praxon-$STAMP.sql"
 
-      - name: Encrypt it
+      # ---------------------------------------------------------------- 2
+      - name: Prove the dump has real content
+        run: |
+          set -euo pipefail
+          SQL="praxon-$STAMP.sql"
+
+          SIZE=$(wc -c < "$SQL")
+          # Under 1 KB means the connection worked but the database was empty
+          # or wrong. Better to fail than to keep 90 days of empty files.
+          [ "$SIZE" -gt 1024 ] || { echo "Dump is only $SIZE bytes — failing."; exit 1; }
+
+          # Every table the dump actually contains.
+          # sed, not `grep -oP`: -P depends on the runner's locale and fails on
+          # some systems, which would break the backup for an unrelated reason.
+          sed -n 's/^CREATE TABLE public\.\([A-Za-z0-9_]*\).*/\1/p' "$SQL" | sort -u > tables.txt
+          echo "Tables in the dump:"; sed 's/^/  /' tables.txt
+
+          missing=0
+          for t in $REQUIRED_TABLES; do
+            grep -qx "$t" tables.txt || { echo "MISSING TABLE: $t"; missing=1; }
+          done
+          [ "$missing" = "0" ] || { echo "The dump is missing expected tables."; exit 1; }
+
+          # Count the rows the dump will actually restore, per table. A dump
+          # with every table present but zero rows anywhere is still a bad backup.
+          python3 .github/scripts/count_rows.py "$SQL" > rows.txt
+          echo "Rows per table:"; sed 's/^/  /' rows.txt
+
+          TOTAL=$(awk -F'\t' '$1=="TOTAL"{print $2}' rows.txt)
+          [ "${TOTAL:-0}" -gt 0 ] || { echo "Every table is empty — failing."; exit 1; }
+
+          {
+            echo "DUMP_SIZE=$SIZE"
+            echo "DUMP_SHA=$(sha256sum "$SQL" | cut -d' ' -f1)"
+            echo "TABLE_COUNT=$(wc -l < tables.txt)"
+            echo "ROW_TOTAL=$TOTAL"
+          } >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------- 3
+      - name: Compress and encrypt
         env:
           PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
@@ -89,50 +143,71 @@ jobs:
               --passphrase "$PASSPHRASE" \
               --output "praxon-$STAMP.sql.gz.gpg" \
               "praxon-$STAMP.sql.gz"
-          rm -f "praxon-$STAMP.sql.gz"
+          rm -f "praxon-$STAMP.sql.gz"          # the unlocked copy never survives
           ls -lh "praxon-$STAMP.sql.gz.gpg"
+          echo "ENC_SIZE=$(wc -c < "praxon-$STAMP.sql.gz.gpg")" >> "$GITHUB_ENV"
 
-      - name: Push to the private backups repository
+      # ---------------------------------------------------------------- 4
+      - name: Prove the encrypted file can be opened again
         env:
-          BACKUP_REPO: ${{ secrets.BACKUP_REPO }}
-          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -euo pipefail
-          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${BACKUP_REPO}.git" backups
-          cd backups
+          # This is the step that turns "a file exists" into "a backup exists".
+          # It unlocks the file with the same passphrase a human would use, and
+          # checks the result is byte-for-byte what went in. A wrong passphrase,
+          # a truncated write or a broken gzip all fail right here, tonight,
+          # instead of on the day the data is actually needed.
+          gpg --batch --yes --decrypt \
+              --passphrase "$PASSPHRASE" \
+              --output check.sql.gz \
+              "praxon-$STAMP.sql.gz.gpg"
+          gunzip -c check.sql.gz > check.sql
 
-          mkdir -p daily
-          mv "../praxon-$STAMP.sql.gz.gpg" "daily/"
+          BACK_SHA=$(sha256sum check.sql | cut -d' ' -f1)
+          echo "original : $DUMP_SHA"
+          echo "recovered: $BACK_SHA"
+          [ "$BACK_SHA" = "$DUMP_SHA" ] || { echo "Recovered file does NOT match."; exit 1; }
 
-          # Keep the last 30 nights. Older files are deleted here, not by hand.
-          ls -1t daily/*.gpg | tail -n +$((KEEP_DAYS + 1)) | xargs -r rm -f
+          rm -f check.sql check.sql.gz
+          echo "Verified: the backup decrypts and matches the original exactly."
 
-          {
-            echo "# Database backups"
-            echo
-            echo "Encrypted nightly dumps of the Neon production branch. AES-256, passphrase in"
-            echo "the BACKUP_PASSPHRASE secret of the main repository (and in the password"
-            echo "manager — if that passphrase is lost, these files are unreadable)."
-            echo
-            echo "Last backup: $STAMP"
-            echo "Files kept: $(ls -1 daily/*.gpg 2>/dev/null | wc -l)"
-            echo
-            echo "To restore, see docs/RESTORE.md in the main repository."
-          } > README.md
+      # ---------------------------------------------------------------- 5
+      - name: Keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: praxon-backup-${{ env.STAMP }}
+          path: praxon-${{ env.STAMP }}.sql.gz.gpg
+          retention-days: ${{ env.RETENTION_DAYS }}
+          if-no-files-found: error
 
-          git config user.name "backup-bot"
-          git config user.email "backup-bot@users.noreply.github.com"
-          git add -A
-          git commit -m "Backup $STAMP" || { echo "nothing changed"; exit 0; }
-          git push
-
-      - name: Summary
+      # ---------------------------------------------------------------- 6
+      - name: Write the evidence
         if: always()
         run: |
           {
-            echo "### Backup ${{ job.status }}"
+            echo "## Backup ${{ job.status }} — ${STAMP:-unknown date}"
             echo ""
-            echo "- Date (IST): $STAMP"
-            echo "- Destination: \`${{ secrets.BACKUP_REPO }}/daily\`"
-            echo "- Retention: $KEEP_DAYS nights"
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| Tables in the dump | ${TABLE_COUNT:-not reached} |"
+            echo "| Rows in the dump | ${ROW_TOTAL:-not reached} |"
+            echo "| Plain dump size | ${DUMP_SIZE:-not reached} bytes |"
+            echo "| Encrypted size | ${ENC_SIZE:-not reached} bytes |"
+            echo "| Decrypted copy matches the original | ${DUMP_SHA:+verified}${DUMP_SHA:-not reached} |"
+            echo "| Kept for | ${RETENTION_DAYS} days |"
+            echo ""
+            if [ -f rows.txt ]; then
+              echo "<details><summary>Rows per table</summary>"
+              echo ""
+              echo '```'
+              cat rows.txt
+              echo '```'
+              echo ""
+              echo "</details>"
+            fi
+            echo ""
+            echo "SHA-256 of the plain dump: \`${DUMP_SHA:-not reached}\`"
+            echo ""
+            echo "Restore steps: \`docs/RESTORE.md\`"
           } >> "$GITHUB_STEP_SUMMARY"

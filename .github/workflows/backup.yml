@@ -7,7 +7,7 @@
 # this job, anything older than 6 hours is gone for good.
 #
 # WHERE THE BACKUP GOES
-# Into a SEPARATE PRIVATE repository, praxon-backups.
+# Into a SEPARATE PRIVATE repository, praxon_assistant_backup.
 #
 #   Q: Why not keep it in this repository, as a workflow artifact? Simpler.
 #   A: Artifacts follow the repository's read access, and THIS repository is
@@ -17,7 +17,7 @@
 #      the first one. So the data goes somewhere private and the code stays open.
 #
 #   Q: Won't a nightly commit redeploy the live site?
-#   A: No. The commit lands in praxon-backups, which Render does not watch.
+#   A: No. The commit lands in praxon_assistant_backup, which Render does not watch.
 #
 # NOTE ON GROWTH: old files are deleted after KEEP_DAYS, but Git keeps every
 # version forever, so the backups repository grows by roughly one encrypted
@@ -35,7 +35,7 @@
 #   NEON_DATABASE_URL   the database to back up
 #   BACKUP_PASSPHRASE   locks the file. If this is lost, the backups are
 #                       unreadable by anyone, forever. Password manager.
-#   BACKUP_REPO         e.g. vasaviAnnapureddy/praxon-backups  (must be PRIVATE)
+#   BACKUP_REPO         e.g. vasaviAnnapureddy/praxon_assistant_backup  (must be PRIVATE)
 #   BACKUP_REPO_TOKEN   a fine-grained token that can write to that one
 #                       repository and nothing else
 # =============================================================================

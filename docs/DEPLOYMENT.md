@@ -134,7 +134,7 @@ that now. If `backend/.env` is there, stop, delete the repository, and check
 
 **4.2 Create the private backups repository**
 
-New repository → name `praxon-backups` → **Private** → create. Leave it empty.
+New repository → name `praxon_assistant_backup` → **Private** → create. Leave it empty.
 
 **This repository (`praxon-chatbot`) stays public on purpose**, so the code can
 be shown to people. The data must not. So the dumps go to a separate private
@@ -147,7 +147,7 @@ if it is not.
    **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
 2. Name: `praxon-backup-writer`. Expiry: the longest offered (usually 1 year).
    Put a calendar reminder a month before it expires.
-3. Repository access: **Only select repositories** → `praxon-backups`.
+3. Repository access: **Only select repositories** → `praxon_assistant_backup`.
 4. Permissions → Repository permissions → **Contents: Read and write**.
    (Metadata turns itself on. That is what lets the workflow check the
    repository is private.)
@@ -162,13 +162,13 @@ In **praxon-chatbot** → **Settings** → **Secrets and variables** → **Actio
 |---|---|
 | `NEON_DATABASE_URL` | the pooled connection string for the branch you want backed up |
 | `BACKUP_PASSPHRASE` | a long phrase you invent. **Save it in the password manager. It is the only thing that can decrypt your backups.** |
-| `BACKUP_REPO` | `YOUR-USERNAME/praxon-backups` |
+| `BACKUP_REPO` | `YOUR-USERNAME/praxon_assistant_backup` |
 | `BACKUP_REPO_TOKEN` | the token from 4.3 |
 
 Secrets stay hidden even though this repository is public, and GitHub does not
 hand them to pull requests from strangers.
 
-The nightly commit lands in `praxon-backups`, which Render does not watch, so
+The nightly commit lands in `praxon_assistant_backup`, which Render does not watch, so
 the live site is never redeployed at 1 am.
 
 Then open `.github/workflows/backup.yml` and check `PG_VERSION` matches the
@@ -317,7 +317,7 @@ important detail in the whole deployment.
 1. GitHub → **Actions** tab → **Nightly database backup** → **Run workflow**.
 2. Watch it. Roughly 60 seconds.
 
-You should see: a green tick, a new file in `praxon-backups/daily/` named
+You should see: a green tick, a new file in `praxon_assistant_backup/daily/` named
 `praxon-YYYY-MM-DD.sql.gz.gpg`, and a summary table on the run page giving the
 number of tables, the number of rows, both file sizes, and a line confirming the
 encrypted file was decrypted again and matched the original exactly.

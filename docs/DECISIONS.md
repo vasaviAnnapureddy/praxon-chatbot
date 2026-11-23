@@ -9,7 +9,7 @@ Update this file before changing code, not after.
 
 | # | Decision | Date | Why |
 |---|---|---|---|
-| 12 | `praxon-chatbot` stays **public**; backups go to a **private** `praxon-backups` | 23 Nov 2026 | The code is a portfolio piece and should be readable. The data is not. |
+| 12 | `praxon-chatbot` stays **public**; backups go to a **private** `praxon_assistant_backup` | 23 Nov 2026 | The code is a portfolio piece and should be readable. The data is not. |
 | 11 | Backups verify themselves: tables, rows, truncation, and a decrypt-and-compare | 23 Nov 2026 | A backup nobody has opened is a guess |
 | 10 | Nightly backup kept, not switched off | 23 Nov 2026 | Neon Free keeps only a 6-hour history window and has no scheduled backups |
 | 9 | Logo files live in `client/brand/`, served at `/brand` | 21 Sep 2026 | Everything company-specific stays in `client/` |

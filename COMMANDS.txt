@@ -196,6 +196,32 @@
 
 
 ===============================================================================
+ 9. MEASURE HOW GOOD THE SEARCH IS              (the number for your resume)
+===============================================================================
+
+   .\.venv\Scripts\python.exe -X utf8 backend\tests\retrieval_eval.py
+
+ Does NOT need the website running. Asks 34 questions where we have written
+ down which page SHOULD be found, then checks whether the search found it.
+ Plus 5 off-topic questions that it should refuse to answer.
+
+ WHAT YOU SHOULD SEE AT THE END:
+   Hit@1               ..%   right file ranked first
+   Hit@4               ..%   right file somewhere in the top 4   <- the main one
+   MRR                 ...   ranking quality, 1.000 is perfect
+   Off-topic refused  100%   correctly found nothing             <- must be 100
+   Median search       ..ms
+
+ It writes docs\RETRIEVAL_RESULTS.md. That file is what you show people.
+
+ COST: 39 embedding calls, no AI replies. Cheap, and no daily cap is used.
+ SAFE: it only reads. It never writes to the database.
+
+ The questions live in backend\tests\retrieval_cases.json. Read them and fix
+ any where you disagree about which page should answer.
+
+
+===============================================================================
  FILES YOU EDIT BY HAND (no command needed)
 ===============================================================================
 
